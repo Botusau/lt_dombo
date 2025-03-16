@@ -6,4 +6,4 @@ fi
 
 git clone https://github.com/Botusau/lt_dombo.git
 
-./lt_dombo/run.sh
+./app/lt_dombo/run.sh
