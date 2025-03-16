@@ -1,6 +1,6 @@
 services:
   lt_dombo:
-    image: lt_dombo
+    image: lt_dombo:v1.0.0
     build:
       context: .
       dockerfile: ./Dockerfile
