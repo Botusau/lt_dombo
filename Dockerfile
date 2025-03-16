@@ -1,4 +1,4 @@
 FROM python:3.12
-COPY ./start.sh ./app/start.sh
+COPY ./starter.sh ./app/starter.sh
 WORKDIR /app
-CMD ["./start.sh"]
+CMD ["./starter.sh"]
