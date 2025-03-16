@@ -27,6 +27,6 @@ LICENSE
 README.md
 items.csv
 sdata.csv
-main_test.py
+main_test_ai.py
 **/tabularAutoML_model_report
 model.pkl
