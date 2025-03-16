@@ -1,0 +1,7 @@
+__pycache__
+venv
+vscode
+main_test_ai.py
+model.pkl
+items.csv
+sdata.csv
