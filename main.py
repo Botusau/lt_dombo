@@ -61,7 +61,7 @@ async def fit_predict(item: Item):
 
   automl.fit_predict(df, roles=roles, verbose=2)
 
-  joblib.dump(automl, "./model.pkl")
+  joblib.dump(automl, "/app/model.pkl")
 
   return 'Обучение завершено'
 
@@ -77,7 +77,7 @@ async def predict(item: Item):
 
   df.to_csv('items.csv', index=False)
 
-  automl = joblib.load("./model.pkl")
+  automl = joblib.load("/app/model.pkl")
   
   test_pred = automl.predict(df)
 

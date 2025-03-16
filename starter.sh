@@ -1,9 +1,11 @@
 #!/bin/bash
 
-if [[ -d ./lt_dombo ]]; then
-    rm -rf ./lt_dombo
-fi
+cd /app
+mkdir lt_dombo
+rm -rf lt_dombo
 
 git clone https://github.com/Botusau/lt_dombo.git
 
-./app/lt_dombo/run.sh
+cd ./lt_dombo
+
+sh run.sh
