@@ -69,7 +69,7 @@ async def fit_predict(item: Item):
     automl = TabularNLPAutoML(
         task=task,
         timeout = 14400,
-        memory_limit=2, 
+        memory_limit=6, 
         reader_params = {'n_jobs': os.cpu_count(), 'cv': 5, 'random_state': RANDOM_STATE},
         text_params = {'lang': 'ru', 'bert_model': 'DeepPavlov/rubert-base-cased-conversational'},
         general_params={'nested_cv': False, 'use_algos': [['linear_l2', 'lgb', 'cb', 'nn', 'lgb_tuned', 'cb_tuned']]},    
@@ -80,7 +80,7 @@ async def fit_predict(item: Item):
     automl = TabularAutoML(
       task=task,
       timeout = 14400,
-      memory_limit=2,
+      memory_limit=6,
       general_params={'nested_cv': False, 'use_algos': [['linear_l2', 'lgb', 'cb', 'nn', 'lgb_tuned', 'cb_tuned']]},    
     )
 
