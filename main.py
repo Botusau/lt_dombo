@@ -6,6 +6,7 @@ import pandas as pd
 from lightautoml.tasks import Task
 import numpy as np
 from lightautoml.automl.presets.text_presets import TabularNLPAutoML
+from lightautoml.automl.presets.tabular_presets import TabularAutoML
 import joblib
 from sklearn.metrics import f1_score
 
@@ -13,9 +14,15 @@ app = FastAPI()
 app.state.models = {}
 
 RANDOM_STATE = 45  # fixed random state for various reasons
+np.random.seed(RANDOM_STATE)
 
 class Item(BaseModel):
   data: Any
+  NameModel: str
+  TaskType: str
+  df_text: Any
+  df_drop: Any
+
 
 def f1_macro(y_true, y_pred):
   return f1_score(y_true, np.argmax(y_pred, axis=1), average='macro')
@@ -34,37 +41,54 @@ async def fit_predict(item: Item):
   Обучает модель на данных, сохраняет ее и возвращает результаты обучения.
   """
   df = pd.DataFrame(item.data)
-
-  value_counts = df['TARGET'].value_counts() # Подсчитываем количество повторений каждого значения в колонке TARGET
-  values_to_drop = value_counts[value_counts == 1].index # Находим значения, которые встречаются только один раз
-  df = df[~df['TARGET'].isin(values_to_drop)] # Удаляем строки, где значение в колонке TARGET встречается только один раз
-
-  df = clean_df(df)
-
   df.to_csv('sdata.csv', index=False)
 
-  task = Task('multiclass', metric=f1_macro)
+  NameModel = item.NameModel
+  patchModel = '/app/' + NameModel + '.pkl' # Получаем путь к файлу модели
+
   roles = {
-      'target': 'TARGET',
-      'text': ['Materials'],
-      'drop': ['Key'],
-  }
+        'target': 'TARGET',
+    }
+  
+  if item.df_text != None:
+    roles['text'] = item.df_text
 
-  np.random.seed(RANDOM_STATE)
+  if item.df_drop != None:
+    roles['drop'] = item.df_drop
 
-  automl = TabularNLPAutoML(
+  if item.TaskType == 'multiclass' or item.TaskType == 'binary':
+
+    value_counts = df['TARGET'].value_counts() # Подсчитываем количество повторений каждого значения в колонке TARGET
+    values_to_drop = value_counts[value_counts == 1].index # Находим значения, которые встречаются только один раз
+    df = df[~df['TARGET'].isin(values_to_drop)] # Удаляем строки, где значение в колонке TARGET встречается только один раз
+
+    #df = clean_df(df)
+
+    task = Task(item.TaskType, metric=f1_macro)
+
+    automl = TabularNLPAutoML(
+        task=task,
+        timeout = 14400,
+        memory_limit=2, 
+        reader_params = {'n_jobs': os.cpu_count(), 'cv': 5, 'random_state': RANDOM_STATE},
+        text_params = {'lang': 'ru', 'bert_model': 'DeepPavlov/rubert-base-cased-conversational'},
+        general_params={'nested_cv': False, 'use_algos': [['linear_l2', 'lgb', 'cb', 'nn', 'lgb_tuned', 'cb_tuned']]},    
+    )
+
+  elif item.TaskType == 'reg':
+
+    automl = TabularAutoML(
       task=task,
       timeout = 14400,
-      reader_params = {'n_jobs': os.cpu_count(), 'cv': 5, 'random_state': RANDOM_STATE},
-      text_params = {'lang': 'ru', 'bert_model': 'DeepPavlov/rubert-base-cased-conversational'},
-      general_params={'nested_cv': False, 'use_algos': [['linear_l2', 'lgb', 'cb', 'nn']]},    
-  )
+      memory_limit=2,
+      general_params={'nested_cv': False, 'use_algos': [['linear_l2', 'lgb', 'cb', 'nn', 'lgb_tuned', 'cb_tuned']]},    
+    )
 
   automl.fit_predict(df, roles=roles, verbose=2)
 
-  joblib.dump(automl, "/app/model.pkl")
+  joblib.dump(automl, patchModel)
 
-  app.state.models['model'] = automl
+  app.state.models[NameModel] = automl
 
   return 'Обучение завершено'
 
@@ -75,20 +99,21 @@ async def predict(item: Item):
   Загружает сохраненную модель, делает предсказание на новых данных и возвращает результаты.
   """
   df = pd.DataFrame(item.data)
+  NameModel = item.NameModel
+  patchModel = '/app/' + NameModel + '.pkl' # Получаем путь к файлу модели
 
   df = clean_df(df)
 
-  df.to_csv('items.csv', index=False)
+  #df.to_csv('items.csv', index=False)
 
-  if app.state.models.get("model") is None:
-    app.state.models['model'] = joblib.load("/app/model.pkl")
+  if app.state.models.get(NameModel) is None:
+    app.state.models[NameModel] = joblib.load(patchModel)
 
-  automl = app.state.models.get("model")
+  automl = app.state.models.get(NameModel)
   
   test_pred = automl.predict(df)
 
   return find_max_indices(test_pred.data.tolist(), automl.reader.class_mapping)
-
 
 def find_max_indices(arr, mapping):
   """
