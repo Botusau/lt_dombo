@@ -1,5 +1,6 @@
 **/__pycache__
 **/.venv
+**/.vscode
 **/.classpath
 **/.dockerignore
 **/.env
@@ -30,3 +31,4 @@ sdata.csv
 main_test_ai.py
 **/tabularAutoML_model_report
 model.pkl
+main_norn_test.py

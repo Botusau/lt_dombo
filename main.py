@@ -10,6 +10,7 @@ import joblib
 from sklearn.metrics import f1_score
 
 app = FastAPI()
+app.state.models = {}
 
 RANDOM_STATE = 45  # fixed random state for various reasons
 
@@ -63,6 +64,8 @@ async def fit_predict(item: Item):
 
   joblib.dump(automl, "/app/model.pkl")
 
+  app.state.models['model'] = automl
+
   return 'Обучение завершено'
 
 
@@ -77,7 +80,10 @@ async def predict(item: Item):
 
   df.to_csv('items.csv', index=False)
 
-  automl = joblib.load("/app/model.pkl")
+  if app.state.models.get("model") is None:
+    app.state.models['model'] = joblib.load("/app/model.pkl")
+
+  automl = app.state.models.get("model")
   
   test_pred = automl.predict(df)
 
