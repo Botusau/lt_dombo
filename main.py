@@ -77,6 +77,8 @@ async def fit_predict(item: Item):
 
   elif item.TaskType == 'reg':
 
+    task = Task(item.TaskType)
+
     automl = TabularAutoML(
       task=task,
       timeout = 14400,
