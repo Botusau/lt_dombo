@@ -62,8 +62,6 @@ async def fit_predict(item: Item):
     values_to_drop = value_counts[value_counts == 1].index # Находим значения, которые встречаются только один раз
     df = df[~df['TARGET'].isin(values_to_drop)] # Удаляем строки, где значение в колонке TARGET встречается только один раз
 
-    #df = clean_df(df)
-
     task = Task(item.TaskType, metric=f1_macro)
 
     automl = TabularNLPAutoML(
@@ -104,9 +102,7 @@ async def predict(item: Item):
   NameModel = item.NameModel
   patchModel = '/app/' + NameModel + '.pkl' # Получаем путь к файлу модели
 
-  df = clean_df(df)
-
-  #df.to_csv('items.csv', index=False)
+  df.to_csv('items.csv', index=False)
 
   if app.state.models.get(NameModel) is None:
     app.state.models[NameModel] = joblib.load(patchModel)
@@ -127,13 +123,3 @@ def find_max_indices(arr, mapping):
       max_index = sub_arr.index(max_value)
       max_indices.append(list(mapping.keys())[max_index])
   return max_indices
-
-def clean_df(df):
-  """
-  Очищает текст от лишних символов.
-  """
-  df['Materials'] = df['Materials'].str.lower()
-  df['Materials'] = df['Materials'].replace("[0-9!#()$\,\'\-\.*+/:;<=>?@[\]^_`{|}\"]+", ' ', regex=True)
-  df['Materials'] = df['Materials'].replace(r'\s+', ' ', regex=True)
-
-  return df
