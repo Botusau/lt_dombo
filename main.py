@@ -101,7 +101,7 @@ async def predict(item: Item):
   df = pd.DataFrame(item.data)
   NameModel = item.NameModel
   patchModel = '/app/' + NameModel + '.pkl' # Получаем путь к файлу модели
-
+  
   df.to_csv('items.csv', index=False)
 
   if app.state.models.get(NameModel) is None:
@@ -111,7 +111,10 @@ async def predict(item: Item):
   
   test_pred = automl.predict(df)
 
-  return find_max_indices(test_pred.data.tolist(), automl.reader.class_mapping)
+  if item.TaskType == 'multiclass' or item.TaskType == 'binary':
+    return find_max_indices(test_pred.data.tolist(), automl.reader.class_mapping)
+  else:
+    return test_pred.data.tolist()
 
 def find_max_indices(arr, mapping):
   """
