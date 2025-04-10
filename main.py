@@ -9,9 +9,14 @@ from lightautoml.automl.presets.text_presets import TabularNLPAutoML
 from lightautoml.automl.presets.tabular_presets import TabularAutoML
 import joblib
 from sklearn.metrics import f1_score
+import logging
 
+logging.basicConfig(level=logging.INFO, filename='log.log')
+
+logging.info("Запуск API")
 app = FastAPI()
 app.state.models = {}
+logging.info("Запущен API")
 
 RANDOM_STATE = 45  # fixed random state for various reasons
 np.random.seed(RANDOM_STATE)
@@ -40,6 +45,9 @@ async def fit_predict(item: Item):
   """
   Обучает модель на данных, сохраняет ее и возвращает результаты обучения.
   """
+
+  logging.info("Запуск обучения модели")
+
   df = pd.DataFrame(item.data)
   df.to_csv('sdata.csv', index=False)
 
@@ -90,6 +98,8 @@ async def fit_predict(item: Item):
 
   app.state.models[NameModel] = automl
 
+  logging.info("Обучение завершено")
+
   return 'Обучение завершено'
 
 
@@ -98,6 +108,8 @@ async def predict(item: Item):
   """
   Загружает сохраненную модель, делает предсказание на новых данных и возвращает результаты.
   """
+  logging.info("Запуск предсказания модели")
+
   df = pd.DataFrame(item.data)
   NameModel = item.NameModel
   patchModel = '/app/' + NameModel + '.pkl' # Получаем путь к файлу модели
@@ -109,7 +121,11 @@ async def predict(item: Item):
 
   automl = app.state.models.get(NameModel)
   
+  logging.info("Загрузка модели завершена")
+
   test_pred = automl.predict(df)
+
+  logging.info("Предсказание завершено")
 
   if item.TaskType == 'multiclass' or item.TaskType == 'binary':
     return find_max_indices(test_pred.data.tolist(), automl.reader.class_mapping)
