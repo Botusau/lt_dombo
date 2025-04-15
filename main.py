@@ -10,6 +10,7 @@ from lightautoml.automl.presets.tabular_presets import TabularAutoML
 import joblib
 from sklearn.metrics import f1_score
 import logging
+import psutil
 
 logging.basicConfig(level=logging.INFO, filename='log.log')
 
@@ -72,11 +73,13 @@ async def fit_predict(item: Item):
 
     task = Task(item.TaskType, metric=f1_macro)
 
+    total_memory = psutil.virtual_memory().total / (1024**3)
+
     automl = TabularNLPAutoML(
         task=task,
         timeout = 14400,
         cpu_limit=os.cpu_count(),
-        memory_limit=6, 
+        memory_limit=total_memory, 
         reader_params = {'n_jobs': os.cpu_count(), 'cv': 5, 'random_state': RANDOM_STATE},
         text_params = {'lang': 'ru', 'bert_model': 'DeepPavlov/rubert-base-cased-conversational'},
         general_params={'nested_cv': False, 'use_algos': [['linear_l2', 'lgb', 'cb', 'nn', 'lgb_tuned', 'cb_tuned']]},    
@@ -90,7 +93,7 @@ async def fit_predict(item: Item):
       task=task,
       cpu_limit=os.cpu_count(),
       timeout = 14400,
-      memory_limit=6,
+      memory_limit=total_memory,
       general_params={'nested_cv': False, 'use_algos': [['linear_l2', 'lgb', 'cb', 'nn', 'lgb_tuned', 'cb_tuned']]},    
     )
 
