@@ -65,6 +65,8 @@ async def fit_predict(item: Item):
   if item.df_drop != None:
     roles['drop'] = item.df_drop
 
+  total_memory = psutil.virtual_memory().total / (1024**3)
+
   if item.TaskType == 'multiclass' or item.TaskType == 'binary':
 
     value_counts = df['TARGET'].value_counts() # Подсчитываем количество повторений каждого значения в колонке TARGET
@@ -72,8 +74,6 @@ async def fit_predict(item: Item):
     df = df[~df['TARGET'].isin(values_to_drop)] # Удаляем строки, где значение в колонке TARGET встречается только один раз
 
     task = Task(item.TaskType, metric=f1_macro)
-
-    total_memory = psutil.virtual_memory().total / (1024**3)
 
     automl = TabularNLPAutoML(
         task=task,
