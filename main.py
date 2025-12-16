@@ -188,7 +188,7 @@ async def fit_predict(item: Item) -> str:
         cpu_limit=os.cpu_count(),
         memory_limit=total_memory,
         reader_params={'n_jobs': os.cpu_count(), 'cv': 5, 'random_state': RANDOM_STATE},
-        text_params={'lang': 'ru', 'bert_model': 'DeepPavlov/rubert-base-cased-conversational'},
+        #text_params={'lang': 'ru', 'bert_model': 'DeepPavlov/rubert-base-cased-conversational'},
         general_params={'nested_cv': False, 'use_algos': [['tabm']]},
     )
 
