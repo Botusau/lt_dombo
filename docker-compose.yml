@@ -1,7 +1,7 @@
 version: '2'
 services:
   lt_dombo:
-    image: botusau/lt_dombo:v1.0.0
+    image: botusau/lt_dombo:v1.0.1
     restart: always
     build:
       context: .
