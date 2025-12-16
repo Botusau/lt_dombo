@@ -189,7 +189,7 @@ async def fit_predict(item: Item) -> str:
         memory_limit=total_memory,
         reader_params={'n_jobs': os.cpu_count(), 'cv': 5, 'random_state': RANDOM_STATE},
         text_params={'lang': 'ru', 'bert_model': 'DeepPavlov/rubert-base-cased-conversational'},
-        general_params={'nested_cv': False, 'use_algos': [['linear_l2', 'lgb', 'cb', 'nn', 'lgb_tuned', 'cb_tuned']]},
+        general_params={'nested_cv': False, 'use_algos': [['linear_l2', 'lgb', 'cb', 'nn', 'lgb_tuned', 'cb_tuned', 'tabm']]},
     )
 
   elif item.TaskType == 'reg':
@@ -201,7 +201,7 @@ async def fit_predict(item: Item) -> str:
       cpu_limit=os.cpu_count(),
       timeout=MODEL_TIMEOUT,
       memory_limit=total_memory,
-      general_params={'nested_cv': False, 'use_algos': [['linear_l2', 'lgb', 'cb', 'nn', 'lgb_tuned', 'cb_tuned']]},
+      general_params={'nested_cv': False, 'use_algos': [['linear_l2', 'lgb', 'cb', 'nn', 'lgb_tuned', 'cb_tuned', 'tabm']]},
     )
 
   # Обучение модели
