@@ -172,7 +172,7 @@ async def fit_predict(item: Item) -> str:
   if item.TaskType == 'multiclass' or item.TaskType == 'binary':
 
     value_counts = df['TARGET'].value_counts() # Подсчитываем количество повторений каждого значения в колонке TARGET
-    values_to_drop = value_counts[value_counts == 1].index # Находим значения, которые встречаются только один раз
+    values_to_drop = value_counts[value_counts <= 4].index # Находим значения, которые встречаются только один раз
     df = df[~df['TARGET'].isin(values_to_drop)] # Удаляем строки, где значение в колонке TARGET встречается только один раз
 
     # Проверка минимального количества классов
