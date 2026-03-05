@@ -1,417 +1,262 @@
-import os
-from typing import Any, Optional, List, Union
-import logging
-import psutil
-from pathlib import Path
-from datetime import datetime
-import asyncio
-import uvicorn
+"""
+LTAutoML API - Главный файл приложения
 
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, Field
+REST API для автоматического машинного обучения с использованием LightAutoML.
+Поддерживает задачи классификации (бинарной и многоклассовой) и регрессии.
+"""
+import logging
+from typing import List, Union
 
 import pandas as pd
-import numpy as np
+import uvicorn
+from fastapi import FastAPI, HTTPException, Request, status
+from fastapi.middleware.cors import CORSMiddleware
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 
-from lightautoml.tasks import Task
-from lightautoml.automl.presets.text_presets import TabularNLPAutoML
-from lightautoml.automl.presets.tabular_presets import TabularAutoML
-
-import joblib
-from sklearn.metrics import f1_score
+from app.config import (
+    APP_VERSION,
+    APP_TITLE,
+    APP_DESCRIPTION,
+    HOST,
+    PORT,
+    MAX_MODEL_CACHE_SIZE,
+    MODELS_DIR,
+    TARGET_COLUMN,
+)
+from app.models import Item, HealthResponse
+from app.utils import ModelCache, setup_logging, get_logger
+from app.services import MLService
+from app.dependencies import validate_item
 
 # Настройка логирования
-logging.basicConfig(level=logging.INFO, filename='log.log', format='%(asctime)s - %(levelname)s - %(message)s')
+setup_logging()
+logger = get_logger(__name__)
 
 # Инициализация FastAPI приложения
 app = FastAPI(
-    title="LTAutoML API",
-    description="API для автоматического машинного обучения с использованием LightAutoML. Поддерживает задачи классификации и регрессии."
+    title=APP_TITLE,
+    description=APP_DESCRIPTION,
+    version=APP_VERSION,
+    docs_url="/docs",
+    redoc_url="/redoc",
 )
 
-# Хранилище моделей в памяти
-app.state.models = {}
-# Хранилище времени последнего использования моделей
-app.state.model_timestamps = {}
-# Хранилище метаданных моделей
-app.state.model_metadata = {}
+# Rate limiting
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_middleware(SlowAPIMiddleware)
 
-# Константы
-RANDOM_STATE = 45  # fixed random state for various reasons
-MAX_MODEL_CACHE_SIZE = 10  # Максимальное количество моделей в кэше
-MODEL_TIMEOUT = 14400  # Таймаут обучения в секундах (4 часа)
+def rate_limit_exception_handler(request: Request, exc: RateLimitExceeded):
+    """Обработчик превышения rate limit"""
+    raise HTTPException(
+        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+        detail="Превышен лимит запросов. Попробуйте позже."
+    )
 
-# Установка случайного состояния
-np.random.seed(RANDOM_STATE)
+app.add_exception_handler(RateLimitExceeded, rate_limit_exception_handler)
 
-class Item(BaseModel):
-  """
-  Модель данных для запросов API обучения и предсказания
-  
-  Attributes:
-      data: Данные для обучения или предсказания в формате JSON
-      NameModel: Уникальное имя модели для сохранения/загрузки
-      TaskType: Тип задачи машинного обучения (multiclass, binary, reg)
-      df_text: Опциональное поле для указания текстовой колонки
-      df_drop: Опциональное поле для указания колонок, которые нужно удалить
-  """
-  data: Any = Field(..., description="Данные для обучения или предсказания в формате JSON")
-  NameModel: str = Field(..., description="Уникальное имя модели для сохранения/загрузки")
-  TaskType: str = Field(..., description="Тип задачи машинного обучения (multiclass, binary, reg)")
-  df_text: Optional[Any] = Field(None, description="Опциональное поле для указания текстовой колонки")
-  df_drop: Optional[Any] = Field(None, description="Опциональное поле для указания колонок, которые нужно удалить")
+# CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Настройте для продакшена
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-class PredictionResponse(BaseModel):
-  """
-  Модель ответа для предсказаний
-  
-  Attributes:
-      predictions: Результаты предсказания модели
-  """
-  predictions: List[Union[float, int, str]] = Field(..., description="Результаты предсказания модели")
+# Инициализация сервисов
+model_cache = ModelCache(max_size=MAX_MODEL_CACHE_SIZE)
+ml_service = MLService(MODELS_DIR)
 
-def f1_macro(y_true: np.ndarray, y_pred: np.ndarray) -> float:
-  """
-  Вычисляет F1 макро метрику
-  
-  Args:
-      y_true: Истинные значения
-      y_pred: Предсказанные значения
-      
-  Returns:
-      F1 макро метрика
-  """
-  return f1_score(y_true, np.argmax(y_pred, axis=1), average='macro')
+logger.info("LTAutoML API инициализирован")
+
 
 @app.get("/", response_model=dict)
-async def home_page():
-  """
-  Возвращает приветственное сообщение
-  
-  Returns:
-      dict: Приветственное сообщение
-  """
-  return {"message": "Добро пожаловать в LTAutoML API!"}
+async def root():
+    """
+    Корневой endpoint - информация о API
+    
+    Returns:
+        dict: Приветственное сообщение и доступные endpoints
+    """
+    return {
+        "message": "Добро пожаловать в LTAutoML API!",
+        "version": APP_VERSION,
+        "endpoints": {
+            "docs": "/docs",
+            "health": "/health",
+            "train": "POST /fit_predict/",
+            "predict": "POST /predict/",
+        }
+    }
+
+
+@app.get("/health", response_model=HealthResponse)
+async def health_check(request: Request):
+    """
+    Health check endpoint
+
+    Returns:
+        HealthResponse: Статус приложения
+    """
+    cache_size = await model_cache.size()
+    return HealthResponse(
+        status="healthy",
+        version=APP_VERSION,
+        models_cached=cache_size,
+    )
+
 
 @app.post("/fit_predict/", response_model=str)
-async def fit_predict(item: Item) -> str:
-  """
-  Обучает модель на предоставленных данных и сохраняет её
-  
-  Args:
-      item: Данные для обучения
-      
-  Returns:
-      str: Статус обучения
-      
-  Raises:
-      HTTPException: При ошибках валидации или обучения
-  """
-  logging.info(f"Запуск обучения модели {item.NameModel}")
-
-  # Валидация входных данных
-  if not item.data:
-    logging.error("Ошибка: данные не предоставлены")
-    raise HTTPException(status_code=400, detail="Данные не предоставлены")
-  
-  if not item.NameModel:
-    logging.error("Ошибка: имя модели не указано")
-    raise HTTPException(status_code=400, detail="Имя модели не указано")
-  
-  if item.TaskType not in ['multiclass', 'binary', 'reg']:
-    logging.error(f"Ошибка: неподдерживаемый тип задачи: {item.TaskType}")
-    raise HTTPException(status_code=400, detail=f"Неподдерживаемый тип задачи: {item.TaskType}")
-
-  try:
-    df = pd.DataFrame(item.data)
-  except Exception as e:
-    logging.error(f"Ошибка при создании DataFrame: {str(e)}")
-    raise HTTPException(status_code=400, detail=f"Ошибка при создании DataFrame: {str(e)}")
-
-  # Проверка наличия целевой переменной
-  if 'TARGET' not in df.columns:
-    logging.error("Ошибка: колонка TARGET не найдена в данных")
-    raise HTTPException(status_code=400, detail="Колонка TARGET не найдена в данных")
-
-  # Проверяем что директория существует если нет, то создаем
-  if not Path('./app').exists():
-    try:
-      Path('./app').mkdir(parents=True, exist_ok=True)
-    except Exception as e:
-      logging.error(f"Ошибка: не удалось создать директорию /app: {str(e)}")
-      raise HTTPException(status_code=500, detail=f"Не удалось создать директорию /app: {str(e)}")
-
-  NameModel = item.NameModel
-  # Получаем путь к директории модели
-  model_dir = './app/' + NameModel
-  # Создаем директорию модели если она не существует
-  if not Path(model_dir).exists():
-    try:
-      Path(model_dir).mkdir(parents=True, exist_ok=True)
-    except Exception as e:
-      logging.error(f"Ошибка: не удалось создать директорию {model_dir}: {str(e)}")
-      raise HTTPException(status_code=500, detail=f"Не удалось создать директорию {model_dir}: {str(e)}")
-    
-  # Получаем путь к файлу модели
-  patchModel = model_dir + '/model.pkl'
-  # Получаем путь к файлу метаданным
-  patchMetadata = model_dir + '/metadata.pkl'
-  
-  roles = {
-        'target': 'TARGET',
-    }
-  
-  if item.df_text is not None:
-    roles['text'] = item.df_text
-
-  if item.df_drop is not None:
-    roles['drop'] = item.df_drop
-
-  total_memory = psutil.virtual_memory().total / (1024**3)
-
-  if item.TaskType == 'multiclass' or item.TaskType == 'binary':
-
-    value_counts = df['TARGET'].value_counts() # Подсчитываем количество повторений каждого значения в колонке TARGET
-    values_to_drop = value_counts[value_counts <= 4].index # Находим значения, которые встречаются только один раз
-    df = df[~df['TARGET'].isin(values_to_drop)] # Удаляем строки, где значение в колонке TARGET встречается только один раз
-
-    # Проверка минимального количества классов
-    if len(df['TARGET'].unique()) < 2:
-      logging.error("Ошибка: недостаточно классов для обучения")
-      raise HTTPException(status_code=400, detail="Недостаточно классов для обучения")
-
-    task = Task(item.TaskType, metric=f1_macro)
-
-    automl = TabularNLPAutoML(
-        task=task,
-        timeout=MODEL_TIMEOUT,
-        cpu_limit=os.cpu_count(),
-        memory_limit=total_memory,
-        reader_params={'n_jobs': os.cpu_count(), 'cv': 5, 'random_state': RANDOM_STATE},
-        text_params={'lang': 'ru', 'bert_model': 'DeepPavlov/rubert-base-cased-conversational'},
-        general_params={'nested_cv': False, 'use_algos': [['linear_l2', 'lgb', 'cb', 'nn', 'lgb_tuned', 'cb_tuned']]},
-    )
-
-  elif item.TaskType == 'reg':
-
-    task = Task(item.TaskType)
-
-    automl = TabularAutoML(
-      task=task,
-      cpu_limit=os.cpu_count(),
-      timeout=MODEL_TIMEOUT,
-      memory_limit=total_memory,
-      general_params={'nested_cv': False, 'use_algos': [['linear_l2', 'lgb', 'cb', 'nn', 'lgb_tuned', 'cb_tuned']]},
-    )
-
-  # Обучение модели
-  try:
-    await asyncio.to_thread(automl.fit_predict, df, roles=roles, verbose=2)
-  except Exception as e:
-    logging.error(f"Ошибка при обучении модели: {str(e)}")
-    raise HTTPException(status_code=500, detail=f"Ошибка при обучении модели: {str(e)}")
-
-  # Сохраняем модель
-  try:
-    await asyncio.to_thread(joblib.dump, automl, patchModel)
-  except Exception as e:
-    logging.error(f"Ошибка при сохранении модели: {str(e)}")
-    raise HTTPException(status_code=500, detail=f"Ошибка при сохранении модели: {str(e)}")
-
-  metadata = {
-                        'columns': df.columns.tolist(),
-                        'dtypes': df.dtypes.to_dict()
-                    }
-
-  # Сохраняем метаданные
-  try:
-    await asyncio.to_thread(joblib.dump, metadata, patchMetadata)
-  except Exception as e:
-    logging.error(f"Ошибка при сохранении метаданных: {str(e)}")
-    raise HTTPException(status_code=500, detail=f"Ошибка при сохранении метаданных: {str(e)}")
-
-  # Добавляем модель в кэш
-  app.state.models[NameModel] = automl
-  app.state.model_timestamps[NameModel] = datetime.now()
-  app.state.model_metadata[NameModel] = metadata
-
-  # Очистка кэша при необходимости
-  if len(app.state.models) > MAX_MODEL_CACHE_SIZE:
-    # Удаляем самую старую модель
-    oldest_model = min(app.state.model_timestamps.items(), key=lambda x: x[1])
-    del app.state.models[oldest_model[0]]
-    del app.state.model_timestamps[oldest_model[0]]
-    logging.info(f"Очищен кэш: удалена модель {oldest_model[0]}")
-
-  logging.info("Обучение завершено")
-
-  return 'Обучение завершено'
-
-@app.post("/predict/", response_model=List[Union[float, int, str, list]])
-async def predict(item: Item) -> List[Union[float, int, str, list]]:
-  """
-  Загружает сохраненную модель и делает предсказание на новых данных
-  
-  Args:
-      item: Данные для предсказания
-      
-  Returns:
-      List[Union[float, int, str]]: Результаты предсказания
-      
-  Raises:
-      HTTPException: При ошибках валидации или предсказания
-  """
-  logging.info(f"Запуск предсказания модели {item.NameModel}")
-
-  # Валидация входных данных
-  if not item.data:
-    logging.error("Ошибка: данные не предоставлены")
-    raise HTTPException(status_code=400, detail="Данные не предоставлены")
-  
-  if not item.NameModel:
-    logging.error("Ошибка: имя модели не указано")
-    raise HTTPException(status_code=400, detail="Имя модели не указано")
-  
-  if item.TaskType not in ['multiclass', 'binary', 'reg']:
-    logging.error(f"Ошибка: неподдерживаемый тип задачи: {item.TaskType}")
-    raise HTTPException(status_code=400, detail=f"Неподдерживаемый тип задачи: {item.TaskType}")
-
-  try:
-    df = pd.DataFrame(item.data)
-  except Exception as e:
-    logging.error(f"Ошибка при создании DataFrame: {str(e)}")
-    raise HTTPException(status_code=400, detail=f"Ошибка при создании DataFrame: {str(e)}")
-
-  NameModel = item.NameModel
-  # Получаем путь к директории модели
-  model_dir = './app/' + NameModel
-  # Получаем путь к файлу модели
-  patchModel = model_dir + '/model.pkl'
-  patchMetadata = model_dir + '/metadata.pkl'
-  
-  # Проверка пути к файлу модели
-  model_path = Path(patchModel)
-  if not model_path.exists():
-    logging.error(f"Файл модели не найден: {patchModel}")
-    raise HTTPException(status_code=400, detail=f"Файл модели не найден: {patchModel}")
-
-  # Используем кэширование моделей
-  if app.state.models.get(NameModel) is None:
-    try:
-      # Выполняем синхронную операцию в отдельном потоке
-      app.state.models[NameModel] = await asyncio.to_thread(joblib.load, patchModel)
-      app.state.model_metadata[NameModel] = await asyncio.to_thread(joblib.load, patchMetadata)
-      app.state.model_timestamps[NameModel] = datetime.now()
-    except Exception as e:
-      logging.error(f"Ошибка при загрузке модели: {str(e)}")
-      raise HTTPException(status_code=500, detail=f"Ошибка при загрузке модели: {str(e)}")
-  else:
-    # Обновляем время последнего использования модели
-    if NameModel in app.state.model_timestamps:
-        app.state.model_timestamps[NameModel] = datetime.now()
-
-  automl = app.state.models.get(NameModel)
-  metadata = app.state.model_metadata.get(NameModel)
-
-  logging.info("Загрузка модели завершена")
-
-  new_df = preprocess_data(metadata, df)
-
-  try:
-    # Выполняем синхронную операцию в отдельном потоке
-    test_pred = await asyncio.to_thread(automl.predict, new_df)
-  except Exception as e:
-    logging.error(f"Ошибка при предсказании: {str(e)}")
-    raise HTTPException(status_code=500, detail=f"Ошибка при предсказании: {str(e)}")
-
-  logging.info("Предсказание завершено")
-
-  if item.TaskType == 'multiclass' or item.TaskType == 'binary':
-    if hasattr(automl.reader, 'class_mapping') and automl.reader.class_mapping is not None:
-        return find_max_indices(test_pred.data.tolist(), automl.reader.class_mapping)
-    else:
-        # Если class_mapping отсутствует, возвращаем просто индексы
-        return [np.argmax(row) for row in test_pred.data.tolist()]
-  else:
-    return test_pred.data.tolist()
-
-def find_max_indices(arr, mapping):
-   """
-   Возвращает массив индексов максимальных значений в каждом массиве.
-   
-   Args:
-       arr: Массив предсказаний
-       mapping: Словарь сопоставления индексов
-       
-   Returns:
-       List: Список индексов максимальных значений
-   """
-   max_indices = []
-   for sub_arr in arr:
-       max_value = max(sub_arr)
-       max_index = sub_arr.index(max_value)
-       # Исправлено: теперь правильно работаем с mapping
-       if mapping is not None and isinstance(mapping, dict) and len(mapping) > 0:
-           # Если mapping - словарь, используем его для получения ключа
-           # Возвращаем ключ, соответствующий индексу
-           keys = list(mapping.keys())
-           if max_index < len(keys):
-               max_indices.append(keys[max_index])
-           else:
-               max_indices.append(max_index)
-       elif mapping is not None and not isinstance(mapping, dict):
-           # Если mapping - не словарь, но не None, возвращаем индекс напрямую
-           max_indices.append(max_index)
-       else:
-           # Если mapping None или пустой, возвращаем индекс напрямую
-           max_indices.append(max_index)
-   return max_indices
-
-# Предобработка новых данных
-def preprocess_data(metadata, new_data: pd.DataFrame) -> pd.DataFrame:
+async def fit_predict(request: Request, item: Item) -> str:
     """
-    Предобрабатывает новые данные для соответствия обученной модели
+    Обучить модель на предоставленных данных и сохранить
     
     Args:
-        metadata: Метаданные обученной модели
-        new_data: Новые данные для предсказания
+        request: FastAPI request объект (для rate limiting)
+        item: Данные для обучения
         
     Returns:
-        pd.DataFrame: Предобработанные данные
+        str: Статус обучения
+        
+    Raises:
+        HTTPException: При ошибках валидации или обучения
     """
-    if not metadata:
-        return new_data
+    logger.info(f"Запрос на обучение модели: {item.NameModel}")
+    
+    # Валидация через dependency
+    await validate_item(item)
+    
+    try:
+        # Создание DataFrame
+        df = pd.DataFrame(item.data)
+    except Exception as e:
+        logger.error(f"Ошибка при создании DataFrame: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Ошибка при создании DataFrame: {e}"
+        )
+    
+    # Проверка наличия целевой переменной
+    if TARGET_COLUMN not in df.columns:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Колонка '{TARGET_COLUMN}' не найдена в данных"
+        )
+    
+    # Подготовка ролей
+    roles = {"target": TARGET_COLUMN}
+    if item.df_text is not None:
+        roles["text"] = item.df_text
+    if item.df_drop is not None:
+        roles["drop"] = item.df_drop
+    
+    try:
+        # Обучение модели
+        metadata = await ml_service.train(
+            df=df,
+            model_name=item.NameModel,
+            task_type=item.TaskType,
+            roles=roles,
+        )
+        
+        # Сохранение в кэш
+        model_path = MODELS_DIR / item.NameModel / "model.pkl"
+        model, _ = await ml_service.load_model(item.NameModel)
+        await model_cache.set(item.NameModel, model, metadata)
+        
+        logger.info(f"Обучение модели {item.NameModel} завершено успешно")
+        return "Обучение завершено"
+        
+    except FileNotFoundError as e:
+        logger.error(f"Ошибка пути к файлу: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Ошибка сохранения модели: {e}"
+        )
+    except ValueError as e:
+        logger.error(f"Ошибка валидации данных: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        logger.error(f"Неожиданная ошибка при обучении: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Ошибка при обучении модели: {e}"
+        )
 
-    # Создаём DataFrame с нужными колонками и типами
-    template_df = pd.DataFrame(columns=metadata['columns'])
+
+@app.post("/predict/", response_model=List[Union[float, int, str, list]])
+async def predict(request: Request, item: Item) -> List[Union[float, int, str]]:
+    """
+    Выполнить предсказание с использованием обученной модели
     
-    # Применяем типы данных к шаблону
-    for col, dtype in metadata['dtypes'].items():
-        if col in template_df.columns:
-            try:
-                template_df[col] = template_df[col].astype(dtype)
-            except Exception:
-                # Если не удалось преобразовать, оставляем как есть
-                pass
+    Args:
+        request: FastAPI request объект (для rate limiting)
+        item: Данные для предсказания
+        
+    Returns:
+        List[Union[float, int, str]]: Результаты предсказания
+        
+    Raises:
+        HTTPException: При ошибках валидации или предсказания
+    """
+    logger.info(f"Запрос на предсказание модели: {item.NameModel}")
     
-    # Объединяем с новыми данными
-    aligned_df = pd.concat([template_df, new_data], ignore_index=True)
+    # Валидация через dependency
+    await validate_item(item)
     
-    # Заполняем пропуски
-    fill_values = {}
-    for col, dtype in metadata['dtypes'].items():
-        if col in aligned_df.columns:
-            if np.issubdtype(dtype, np.number):
-                fill_values[col] = 0
-            elif np.issubdtype(dtype, np.bool_):
-                fill_values[col] = False
-            else:
-                fill_values[col] = 'missing'
+    try:
+        # Создание DataFrame
+        df = pd.DataFrame(item.data)
+    except Exception as e:
+        logger.error(f"Ошибка при создании DataFrame: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Ошибка при создании DataFrame: {e}"
+        )
     
-    aligned_df.fillna(fill_values, inplace=True)
+    # Проверка кэша
+    model = await model_cache.get(item.NameModel)
+    metadata = await model_cache.get_metadata(item.NameModel)
     
-    # Возвращаем только нужные колонки в правильном порядке
-    return aligned_df[metadata['columns']].reset_index(drop=True)
+    if model is None:
+        logger.info(f"Модель {item.NameModel} не найдена в кэше, загрузка из файла")
+        try:
+            model, metadata = await ml_service.load_model(item.NameModel)
+            await model_cache.set(item.NameModel, model, metadata)
+        except FileNotFoundError as e:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Модель не найдена: {item.NameModel}"
+            )
+    
+    try:
+        # Предсказание
+        predictions = await ml_service.predict(
+            df=df,
+            model_name=item.NameModel,
+            task_type=item.TaskType,
+            model=model,
+            metadata=metadata,
+        )
+        
+        logger.info(f"Предсказание для {item.NameModel} завершено")
+        return predictions
+        
+    except Exception as e:
+        logger.error(f"Ошибка при предсказании: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Ошибка при предсказании: {e}"
+        )
+
 
 if __name__ == "__main__":
-  uvicorn.run(app, host="0.0.0.0", port=8000)
+    logger.info(f"Запуск сервера на {HOST}:{PORT}")
+    uvicorn.run(app, host=HOST, port=PORT)
