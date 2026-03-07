@@ -54,8 +54,9 @@ BERT_MODEL_NAME: Final[str] = "DeepPavlov/rubert-base-cased-conversational"
 BERT_LANGUAGE: Final[str] = "ru"
 
 # Алгоритмы AutoML
+#["linear_l2", "lgb", "cb", "nn", "lgb_tuned", "cb_tuned"]
 DEFAULT_ALGORITHMS: Final[list[list[str]]] = [
-    ["linear_l2", "lgb", "cb", "nn", "lgb_tuned", "cb_tuned"]
+    ["cb_tuned"]
 ]
 
 # CV настройки
