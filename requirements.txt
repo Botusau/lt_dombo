@@ -6,3 +6,4 @@ fastapi
 uvicorn
 slowapi
 fasttext-numpy2
+transformers==4.49.0
