@@ -36,7 +36,7 @@ LOG_FILE: Final[Path] = BASE_DIR / "log.log"
 # Логирование
 LOG_MAX_BYTES: Final[int] = 10 * 1024 * 1024  # 10 MB
 LOG_BACKUP_COUNT: Final[int] = 5
-LOG_LEVEL: Final[str] = "INFO"
+LOG_LEVEL: Final[str] = "DEBUG"
 
 # Ограничения
 MAX_DATA_SIZE: Final[int] = 10_000_000  # Максимум строк в данных
