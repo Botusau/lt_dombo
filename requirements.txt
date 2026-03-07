@@ -5,3 +5,4 @@ transformers
 fastapi
 uvicorn
 slowapi
+fasttext-numpy2
