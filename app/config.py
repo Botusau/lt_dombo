@@ -56,7 +56,7 @@ BERT_LANGUAGE: Final[str] = "ru"
 # Алгоритмы AutoML
 #["linear_l2", "lgb", "cb", "nn", "lgb_tuned", "cb_tuned"]
 DEFAULT_ALGORITHMS: Final[list[list[str]]] = [
-    ["linear_l2", "nn"]
+    ["nn"]
 ]
 
 # CV настройки
