@@ -166,7 +166,7 @@ class MLService:
             "cpu_limit": CPU_COUNT,
             "memory_limit": self._memory_limit_gb,
             "reader_params": {
-                "n_jobs": CPU_COUNT,
+                "n_jobs": 1,
                 "cv": CV_FOLDS,
                 "random_state": RANDOM_STATE,
             },
@@ -224,7 +224,7 @@ class MLService:
         # Обучение модели
         logger.info(f"Запуск fit_predict для {model_name}")
         await asyncio.to_thread(
-            automl.fit_predict, df, roles=roles, verbose=2
+            automl.fit_predict, df, roles=roles, verbose=5
         )
 
         # Сохранение модели
