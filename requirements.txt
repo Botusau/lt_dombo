@@ -1,8 +1,6 @@
-LightAutoML>=0.4.3.dev1
-fasttext-wheel
+LightAutoML>=0.4.1
 nltk
 fastapi
 uvicorn
 slowapi
-fasttext-numpy2
 transformers==4.57.6
