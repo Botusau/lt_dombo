@@ -1,4 +1,4 @@
-LightAutoML>=0.4.2
+LightAutoML>=0.4.3.dev1
 fasttext-wheel
 nltk
 fastapi
