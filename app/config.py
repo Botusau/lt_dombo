@@ -70,4 +70,4 @@ TARGET_COLUMN: Final[str] = "TARGET"
 MIN_CLASS_SAMPLES: Final[int] = 4
 
 # CPU лимиты (по умолчанию все доступные)
-CPU_COUNT: Final[int] = os.cpu_count() or 4
+CPU_COUNT: Final[int] = os.cpu_count() * 2 or 4
