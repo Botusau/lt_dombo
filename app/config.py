@@ -50,8 +50,8 @@ RATE_LIMIT_TRAIN_PER_HOUR: Final[int] = 3
 SUPPORTED_TASK_TYPES: Final[tuple[str, ...]] = ("multiclass", "binary", "reg")
 
 # BERT модель для текстовых задач
-BERT_MODEL_NAME: Final[str] = "bert-base-multilingual-cased"
-BERT_LANGUAGE: Final[str] = "multi"
+BERT_MODEL_NAME: Final[str] = "DeepPavlov/rubert-base-cased-conversational"
+BERT_LANGUAGE: Final[str] = "ru"
 
 # Алгоритмы AutoML
 #["linear_l2", "lgb", "cb", "nn", "lgb_tuned", "cb_tuned"]
