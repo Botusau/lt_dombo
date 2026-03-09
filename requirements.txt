@@ -1,4 +1,4 @@
-LightAutoML>=0.4.1
+LightAutoML==0.4.1
 nltk
 fastapi
 uvicorn
