@@ -6,3 +6,4 @@ slowapi
 transformers==4.57.6
 psutil
 gensim
+torch==2.6.0
