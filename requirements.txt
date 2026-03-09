@@ -4,3 +4,4 @@ fastapi
 uvicorn
 slowapi
 transformers==4.57.6
+psutil
