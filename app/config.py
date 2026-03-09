@@ -51,12 +51,12 @@ SUPPORTED_TASK_TYPES: Final[tuple[str, ...]] = ("multiclass", "binary", "reg")
 
 # BERT модель для текстовых задач
 BERT_MODEL_NAME: Final[str] = "bert-base-multilingual-cased"
-BERT_LANGUAGE: Final[str] = "ru"
+BERT_LANGUAGE: Final[str] = "multi"
 
 # Алгоритмы AutoML
 #["linear_l2", "lgb", "cb", "nn", "lgb_tuned", "cb_tuned"]
 DEFAULT_ALGORITHMS: Final[list[list[str]]] = [
-    ["lgb", "cb", "nn", "lgb_tuned", "cb_tuned", "tabm"]
+    ["linear_l2", "lgb", "cb", "nn", "lgb_tuned", "cb_tuned", "tabm"]
 ]
 
 # CV настройки
