@@ -1,4 +1,4 @@
-LightAutoML[nlp]==0.4.2
+LightAutoML[all]==0.4.2
 uvicorn
 fastapi
 slowapi
