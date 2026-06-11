@@ -237,7 +237,7 @@ class MLService:
         # Обучение модели
         logger.info(f"Запуск fit_predict для {model_name}")
         await asyncio.to_thread(
-            automl.fit_predict, df, roles=roles, verbose=5
+            automl.fit_predict, df, roles=roles, verbose=9
         )
 
         # Сохранение модели
