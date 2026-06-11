@@ -12,6 +12,9 @@ from .config import (
     MODEL_TIMEOUT,
     MODELS_DIR,
     SUPPORTED_TASK_TYPES,
+    BERT_POOLING,
+    NLP_CACHE_DIR,
+    NN_MAX_LENGTH,
 )
 from .models import Item, PredictionResponse, HealthResponse
 from .utils import ModelCache, setup_logging, get_logger
@@ -29,6 +32,9 @@ __all__ = [
     "MODEL_TIMEOUT",
     "MODELS_DIR",
     "SUPPORTED_TASK_TYPES",
+    "BERT_POOLING",
+    "NLP_CACHE_DIR",
+    "NN_MAX_LENGTH",
     # Models
     "Item",
     "PredictionResponse",

@@ -4,3 +4,4 @@ fastapi
 slowapi
 fasttext-numpy2
 nltk
+sentence-transformers

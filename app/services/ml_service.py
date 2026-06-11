@@ -24,6 +24,9 @@ from ..config import (
     MIN_CLASS_SAMPLES,
     BERT_MODEL_NAME,
     BERT_LANGUAGE,
+    BERT_POOLING,
+    NLP_CACHE_DIR,
+    NN_MAX_LENGTH,
     DEFAULT_ALGORITHMS,
     CV_FOLDS,
     NESTED_CV,
@@ -181,7 +184,17 @@ class MLService:
                 **common_params,
                 text_params={
                     "lang": BERT_LANGUAGE,
-                    "bert_model": BERT_MODEL_NAME,
+                },
+                autonlp_params={
+                    "model_name": "pooled_bert",
+                    "transformer_params": {
+                        "bert_model": BERT_MODEL_NAME,
+                        "pooling": BERT_POOLING,
+                    },
+                    "cache_dir": str(NLP_CACHE_DIR),
+                },
+                nn_params={
+                    "max_length": NN_MAX_LENGTH,
                 },
             )
         return TabularAutoML(**common_params)

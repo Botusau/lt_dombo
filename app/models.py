@@ -1,7 +1,7 @@
 """
 Pydantic модели для запросов и ответов API
 """
-from typing import Any, List, Union
+from typing import Any, List, Optional, Union
 
 from pydantic import BaseModel, Field, ConfigDict, field_validator
 
@@ -39,10 +39,10 @@ class Item(BaseModel):
         description="Тип задачи машинного обучения (multiclass, binary, reg)",
         examples=["multiclass"]
     )
-    df_text: Union[Any, None] = Field(
+    df_text: Optional[List[str]] = Field(
         None,
-        description="Опциональное поле для указания текстовой колонки",
-        examples=["text_column"]
+        description="Список имён текстовых колонок для NLP-обработки",
+        examples=[["description", "title"]]
     )
     df_drop: Union[Any, None] = Field(
         None,

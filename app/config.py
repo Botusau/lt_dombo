@@ -49,9 +49,16 @@ RATE_LIMIT_TRAIN_PER_HOUR: Final[int] = 3
 # Поддерживаемые типы задач
 SUPPORTED_TASK_TYPES: Final[tuple[str, ...]] = ("multiclass", "binary", "reg")
 
-# BERT модель для текстовых задач
-BERT_MODEL_NAME: Final[str] = "DeepPavlov/rubert-base-cased-conversational"
-BERT_LANGUAGE: Final[str] = "ru"
+# BERT модель для текстовых задач — sentence embeddings
+BERT_MODEL_NAME: Final[str] = "sentence-transformers/all-MiniLM-L6-v2"
+BERT_LANGUAGE: Final[str] = "en"
+BERT_POOLING: Final[str] = "mean"
+
+# Кэш эмбеддингов NLP (для ускорения повторных запусков)
+NLP_CACHE_DIR: Final[Path] = BASE_DIR / "nlp_cache"
+
+# Параметры нейросети для NLP
+NN_MAX_LENGTH: Final[int] = 256
 
 # Алгоритмы AutoML
 #["linear_l2", "lgb", "cb", "nn", "lgb_tuned", "cb_tuned"]
