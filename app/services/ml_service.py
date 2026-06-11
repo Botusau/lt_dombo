@@ -14,6 +14,7 @@ import psutil
 
 from lightautoml.tasks import Task
 from lightautoml.automl.presets.text_presets import TabularNLPAutoML
+from sentence_transformers import SentenceTransformer
 from lightautoml.automl.presets.tabular_presets import TabularAutoML
 from sklearn.metrics import f1_score
 
@@ -148,6 +149,21 @@ class MLService:
             return Task(task_type, metric=f1_macro)
         return Task(task_type)
 
+    async def _load_bert_model(self) -> None:
+        """
+        Явно загрузить модель BERT перед созданием TabularNLPAutoML.
+        
+        Предварительная загрузка модели ускоряет работу, так как модель
+        загружается один раз вместо загрузки внутри каждого пайплайна.
+        """
+        logger.info(f"Предварительная загрузка BERT модели: {BERT_MODEL_NAME}")
+        await asyncio.to_thread(
+            SentenceTransformer,
+            BERT_MODEL_NAME,
+            cache_folder=str(NLP_CACHE_DIR)
+        )
+        logger.info("BERT модель успешно загружена")
+
     def _create_automl(
         self,
         task: Task,
@@ -232,6 +248,11 @@ class MLService:
         is_classification = task_type in ("multiclass", "binary")
         task = self._create_task(task_type, is_classification)
         has_text = "text" in roles
+
+        # Предварительная загрузка BERT модели при наличии текстовых данных
+        if has_text:
+            await self._load_bert_model()
+
         automl = self._create_automl(task, has_text)
 
         # Обучение модели
