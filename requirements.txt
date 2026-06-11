@@ -3,3 +3,4 @@ uvicorn
 fastapi
 slowapi
 fasttext-numpy2
+nltk
