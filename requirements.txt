@@ -5,5 +5,5 @@ slowapi
 fasttext-numpy2
 nltk
 sentence-transformers>=2.2.0
-transformers>=4.20.0
+transformers<5.0.0
 torch
