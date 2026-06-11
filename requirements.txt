@@ -7,3 +7,4 @@ nltk
 sentence-transformers>=2.2.0
 transformers<5.0.0
 torch
+cryptography==37.0.2
