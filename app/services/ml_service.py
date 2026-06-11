@@ -14,7 +14,6 @@ import psutil
 
 from lightautoml.tasks import Task
 from lightautoml.automl.presets.text_presets import TabularNLPAutoML
-from sentence_transformers import SentenceTransformer
 from lightautoml.automl.presets.tabular_presets import TabularAutoML
 from sklearn.metrics import f1_score
 
@@ -155,7 +154,17 @@ class MLService:
         
         Предварительная загрузка модели ускоряет работу, так как модель
         загружается один раз вместо загрузки внутри каждого пайплайна.
+        
+        Использует ленивый импорт sentence_transformers, чтобы избежать
+        проблем с зависимостями на старте.
         """
+        try:
+            from sentence_transformers import SentenceTransformer
+        except ImportError as e:
+            logger.warning(f"Не удалось импортировать sentence_transformers: {e}")
+            logger.warning("BERT модель не будет предварительно загружена")
+            return
+
         logger.info(f"Предварительная загрузка BERT модели: {BERT_MODEL_NAME}")
         await asyncio.to_thread(
             SentenceTransformer,
