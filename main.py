@@ -71,6 +71,12 @@ app.add_middleware(
 model_cache = ModelCache(max_size=MAX_MODEL_CACHE_SIZE)
 ml_service = MLService(MODELS_DIR)
 
+@app.on_event("startup")
+async def startup_event():
+    logger.info("Загрузка BERT модели при старте...")
+    await ml_service._load_bert_model()
+    logger.info("BERT модель загружена, сервис готов")
+
 logger.info("LTAutoML API инициализирован")
 
 

@@ -258,10 +258,6 @@ class MLService:
         task = self._create_task(task_type, is_classification)
         has_text = "text" in roles
 
-        # Предварительная загрузка BERT модели при наличии текстовых данных
-        if has_text:
-            await self._load_bert_model()
-
         automl = self._create_automl(task, has_text)
 
         # Обучение модели
