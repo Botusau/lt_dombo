@@ -63,7 +63,7 @@ NN_MAX_LENGTH: Final[int] = 256
 # Алгоритмы AutoML
 #["linear_l2", "lgb", "cb", "nn", "lgb_tuned", "cb_tuned"]
 DEFAULT_ALGORITHMS: Final[list[list[str]]] = [
-    ["linear_l2", "lgb", "cb", "nn", "lgb_tuned", "cb_tuned"]
+    ["tabm", "nn"]
 ]
 
 # CV настройки
