@@ -208,6 +208,7 @@ class MLService:
             return TabularNLPAutoML(
                 **common_params,
                 text_params={
+                    "bert_model": BERT_MODEL_NAME,
                     "lang": BERT_LANGUAGE,
                 },
                 autonlp_params={
