@@ -224,9 +224,6 @@ class MLService:
                     "n_epochs": 10,
                     "bs": 512,
                     "num_workers": 0,
-                    "backbone_params": {
-                        "start_scaling_init_chunks": None,
-                    },
                 },
             )
         return TabularAutoML(**common_params)
