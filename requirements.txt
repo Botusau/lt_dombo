@@ -4,8 +4,8 @@ fastapi
 slowapi
 fasttext-numpy2
 nltk
-sentence-transformers==2.4.0
-transformers<4.55
+sentence-transformers==5.5.1
+transformers==5.10.2
 torch
 cryptography==37.0.2
 protobuf
