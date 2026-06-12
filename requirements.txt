@@ -6,6 +6,5 @@ fasttext-numpy2
 nltk
 sentence-transformers==2.5.1
 transformers==4.40.0
-torch
 cryptography==37.0.2
 protobuf
