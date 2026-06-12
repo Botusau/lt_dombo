@@ -221,6 +221,9 @@ class MLService:
                 },
                 nn_params={
                     "max_length": NN_MAX_LENGTH,
+                    "n_epochs": 10,
+                    "bs": 512,
+                    "num_workers": 0,
                 },
             )
         return TabularAutoML(**common_params)
