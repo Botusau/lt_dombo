@@ -51,7 +51,7 @@ SUPPORTED_TASK_TYPES: Final[tuple[str, ...]] = ("multiclass", "binary", "reg")
 
 # BERT модель для текстовых задач — sentence embeddings
 BERT_MODEL_NAME: Final[str] = "sentence-transformers/all-MiniLM-L6-v2"
-BERT_LANGUAGE: Final[str] = "en"
+BERT_LANGUAGE: Final[str] = "ru"
 BERT_POOLING: Final[str] = "mean"
 
 # Кэш эмбеддингов NLP (для ускорения повторных запусков)
