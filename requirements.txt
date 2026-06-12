@@ -5,7 +5,7 @@ slowapi
 fasttext-numpy2
 nltk
 sentence-transformers==2.4.0
-transformers<5.0.0
+transformers<4.55
 torch
 cryptography==37.0.2
 protobuf
