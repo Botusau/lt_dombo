@@ -2,7 +2,7 @@
 
 pip install --upgrade pip
 pip install torch --index-url https://download.pytorch.org/whl/cpu
-pip install numpy scipy pandas patsy pkg_resources
+pip install numpy scipy pandas patsy
 pip install statsmodels
 #pip install -U -r requirements.txt
 
