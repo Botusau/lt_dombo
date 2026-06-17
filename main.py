@@ -208,7 +208,7 @@ async def fit_predict(item: Item) -> str:
 
   # Обучение модели
   try:
-    await asyncio.to_thread(automl.fit_predict, df, roles=roles, verbose=2)
+    await asyncio.to_thread(automl.fit_predict, df, roles=roles, verbose=10)
   except Exception as e:
     logging.error(f"Ошибка при обучении модели: {str(e)}")
     raise HTTPException(status_code=500, detail=f"Ошибка при обучении модели: {str(e)}")
