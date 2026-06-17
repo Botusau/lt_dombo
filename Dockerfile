@@ -1,4 +1,4 @@
-FROM python:3.12
+FROM python:3.13-slim
 EXPOSE 8000
 COPY ./starter.sh ./app/starter.sh
 WORKDIR /app
