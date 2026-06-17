@@ -188,8 +188,10 @@ async def fit_predict(item: Item) -> str:
         cpu_limit=os.cpu_count(),
         memory_limit=total_memory,
         reader_params={'n_jobs': os.cpu_count(), 'cv': 5, 'random_state': RANDOM_STATE},
-        text_params={'lang': 'ru', 'bert_model': 'DeepPavlov/rubert-base-cased-conversational'},
-        general_params={'nested_cv': False, 'use_algos': [['linear_l2', 'lgb', 'cb', 'nn', 'lgb_tuned', 'cb_tuned']]},
+        text_params={'lang': 'ru', 'bert_model': 'sentence-transformers/all-MiniLM-L6-v2'},
+        autonlp_params={'sent_scaler': 'l2', 'model_name': 'pooled_bert', 'transformer_params': {'bert_model': 'sentence-transformers/all-MiniLM-L6-v2', 'pooling': 'mean'}, 'cache_dir': './nlp_cache'},
+        general_params={'nested_cv': False, 'use_algos': [['lgb', 'cb', 'nn', 'lgb_tuned', 'cb_tuned']]},
+        nn_params={'opt_params': {'lr': 1e-5}, 'max_length': 128, 'bs': 32, 'n_epochs': 7,},
     )
 
   elif item.TaskType == 'reg':
