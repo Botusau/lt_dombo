@@ -264,7 +264,7 @@ async def fit_predict(item: Item) -> str:
       cpu_limit=os.cpu_count(),
       timeout=MODEL_TIMEOUT,
       memory_limit=total_memory,
-      general_params={'nested_cv': False, 'use_algos': [['tabm']]},
+      general_params={'nested_cv': False, 'use_algos': [['fttransformer']]},
   )
 
   # Обучение модели
