@@ -188,7 +188,7 @@ async def fit_predict(item: Item) -> str:
         cpu_limit=os.cpu_count(),
         memory_limit=total_memory,
         reader_params={'n_jobs': os.cpu_count(), 'cv': 5, 'random_state': RANDOM_STATE},
-        text_params={'lang': 'ru', 'bert_model': 'sentence-transformers/all-MiniLM-L6-v2'},
+        text_params={'lang': 'ru', 'bert_model': 'sentence-transformers/all-MiniLM-L6-v2', 'pooling': 'mean'},
         autonlp_params={'sent_scaler': 'l2', 'model_name': 'pooled_bert', 'transformer_params': {'bert_model': 'sentence-transformers/all-MiniLM-L6-v2', 'pooling': 'mean'}, 'cache_dir': './nlp_cache'},
         general_params={'nested_cv': False, 'use_algos': [['nn']]},
         nn_params={'opt_params': {'lr': 1e-5}, 'max_length': 128, 'bs': 32, 'n_epochs': 7,},
@@ -208,7 +208,7 @@ async def fit_predict(item: Item) -> str:
 
   # Обучение модели
   try:
-    await asyncio.to_thread(automl.fit_predict, df, roles=roles, verbose=10)
+    await asyncio.to_thread(automl.fit_predict, df, roles=roles, verbose=10, log_file="fit.log")
   except Exception as e:
     logging.error(f"Ошибка при обучении модели: {str(e)}")
     raise HTTPException(status_code=500, detail=f"Ошибка при обучении модели: {str(e)}")
@@ -385,6 +385,41 @@ def find_max_indices(arr, mapping):
    return max_indices
 
 # Предобработка новых данных
+def _is_numeric_dtype(dtype) -> bool:
+    """
+    Безопасная проверка на числовой тип, совместимая с pandas ExtensionDtypes.
+    
+    Args:
+        dtype: Тип данных (numpy dtype или pandas ExtensionDtype)
+        
+    Returns:
+        bool: True если тип числовой
+    """
+    try:
+        return np.issubdtype(dtype, np.number)
+    except (TypeError, AttributeError):
+        # Для pandas ExtensionDtypes (StringDtype, Category и т.д.)
+        if hasattr(dtype, 'kind'):
+            return dtype.kind in ('i', 'u', 'f', 'c')  # integer, unsigned, float, complex
+        return False
+
+def _is_bool_dtype(dtype) -> bool:
+    """
+    Безопасная проверка на булевый тип, совместимая с pandas ExtensionDtypes.
+    
+    Args:
+        dtype: Тип данных (numpy dtype или pandas ExtensionDtype)
+        
+    Returns:
+        bool: True если тип булевый
+    """
+    try:
+        return np.issubdtype(dtype, np.bool_)
+    except (TypeError, AttributeError):
+        if hasattr(dtype, 'kind'):
+            return dtype.kind == 'b'
+        return False
+
 def preprocess_data(metadata, new_data: pd.DataFrame) -> pd.DataFrame:
     """
     Предобрабатывает новые данные для соответствия обученной модели
@@ -418,9 +453,9 @@ def preprocess_data(metadata, new_data: pd.DataFrame) -> pd.DataFrame:
     fill_values = {}
     for col, dtype in metadata['dtypes'].items():
         if col in aligned_df.columns:
-            if np.issubdtype(dtype, np.number):
+            if _is_numeric_dtype(dtype):
                 fill_values[col] = 0
-            elif np.issubdtype(dtype, np.bool_):
+            elif _is_bool_dtype(dtype):
                 fill_values[col] = False
             else:
                 fill_values[col] = 'missing'
