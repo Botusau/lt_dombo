@@ -14,8 +14,9 @@ import pandas as pd
 import numpy as np
 
 from lightautoml.tasks import Task
-from lightautoml.automl.presets.text_presets import TabularNLPAutoML
 from lightautoml.automl.presets.tabular_presets import TabularAutoML
+
+from sentence_transformers import SentenceTransformer
 
 import joblib
 from sklearn.metrics import f1_score
@@ -43,6 +44,61 @@ MODEL_TIMEOUT = 14400  # Таймаут обучения в секундах (4 
 
 # Установка случайного состояния
 np.random.seed(RANDOM_STATE)
+
+# Константы для эмбеддингов
+EMBEDDING_MODEL_NAME = 'sentence-transformers/all-MiniLM-L6-v2'
+EMBEDDING_DIM = 384  # Размерность эмбеддингов all-MiniLM-L6-v2
+_embedding_model = None
+
+def get_embedding_model() -> SentenceTransformer:
+    """
+    Ленивая инициализация модели эмбеддингов.
+    
+    Returns:
+        SentenceTransformer: Модель для генерации эмбеддингов
+    """
+    global _embedding_model
+    if _embedding_model is None:
+        logging.info(f"Загрузка модели эмбеддингов {EMBEDDING_MODEL_NAME}...")
+        _embedding_model = SentenceTransformer(EMBEDDING_MODEL_NAME)
+        logging.info("Модель эмбеддингов загружена")
+    return _embedding_model
+
+def generate_embeddings(texts) -> np.ndarray:
+    """
+    Генерирует эмбеддинги для списка текстов.
+    
+    Args:
+        texts: Список текстов для эмбеддинга
+        
+    Returns:
+        np.ndarray: Массив эмбеддингов формы (n_samples, 384)
+    """
+    model = get_embedding_model()
+    clean_texts = [str(t) if pd.notna(t) else '' for t in texts]
+    embeddings = model.encode(clean_texts, show_progress_bar=False)
+    return embeddings
+
+def add_embeddings_to_df(df: pd.DataFrame, text_column: str) -> pd.DataFrame:
+    """
+    Генерирует эмбеддинги для текстовой колонки и добавляет их к DataFrame.
+    
+    Args:
+        df: Исходный DataFrame
+        text_column: Имя текстовой колонки
+        
+    Returns:
+        pd.DataFrame: DataFrame с эмбеддингами вместо текстовой колонки
+    """
+    logging.info(f"Генерация эмбеддингов для колонки '{text_column}'...")
+    texts = df[text_column].tolist()
+    embeddings = generate_embeddings(texts)
+    
+    emb_df = pd.DataFrame(embeddings, columns=[f'emb_{i}' for i in range(EMBEDDING_DIM)])
+    result_df = pd.concat([df.drop(columns=[text_column]), emb_df], axis=1)
+    logging.info(f"Эмбеддинги добавлены, форма: {result_df.shape}")
+    
+    return result_df
 
 class Item(BaseModel):
   """
@@ -157,12 +213,28 @@ async def fit_predict(item: Item) -> str:
   # Получаем путь к файлу метаданным
   patchMetadata = model_dir + '/metadata.pkl'
   
+  # Обработка текстовой колонки - генерация эмбеддингов
+  text_column = item.df_text
+  if text_column is not None:
+    # Поддержка формата списка ["column_name"] и строки "column_name"
+    if isinstance(text_column, list):
+      if len(text_column) == 0:
+        text_column = None
+      elif len(text_column) == 1:
+        text_column = text_column[0]
+      else:
+        logging.warning(f"Несколько текстовых колонок не поддерживаются, используется первая: {text_column[0]}")
+        text_column = text_column[0]
+    
+    if text_column is not None:
+      if text_column not in df.columns:
+        logging.error(f"Ошибка: текстовая колонка '{text_column}' не найдена в данных")
+        raise HTTPException(status_code=400, detail=f"Текстовая колонка '{text_column}' не найдена в данных")
+      df = add_embeddings_to_df(df, text_column)
+
   roles = {
         'target': 'TARGET',
     }
-  
-  if item.df_text is not None:
-    roles['text'] = item.df_text
 
   if item.df_drop is not None:
     roles['drop'] = item.df_drop
@@ -171,9 +243,9 @@ async def fit_predict(item: Item) -> str:
 
   if item.TaskType == 'multiclass' or item.TaskType == 'binary':
 
-    value_counts = df['TARGET'].value_counts() # Подсчитываем количество повторений каждого значения в колонке TARGET
-    values_to_drop = value_counts[value_counts == 1].index # Находим значения, которые встречаются только один раз
-    df = df[~df['TARGET'].isin(values_to_drop)] # Удаляем строки, где значение в колонке TARGET встречается только один раз
+    value_counts = df['TARGET'].value_counts()
+    values_to_drop = value_counts[value_counts == 1].index
+    df = df[~df['TARGET'].isin(values_to_drop)]
 
     # Проверка минимального количества классов
     if len(df['TARGET'].unique()) < 2:
@@ -182,29 +254,18 @@ async def fit_predict(item: Item) -> str:
 
     task = Task(item.TaskType, metric=f1_macro)
 
-    automl = TabularNLPAutoML(
-        task=task,
-        timeout=MODEL_TIMEOUT,
-        cpu_limit=os.cpu_count(),
-        memory_limit=total_memory,
-        reader_params={'n_jobs': os.cpu_count(), 'cv': 5, 'random_state': RANDOM_STATE},
-        text_params={'lang': 'ru', 'bert_model': 'sentence-transformers/all-MiniLM-L6-v2', 'pooling': 'mean'},
-        autonlp_params={'sent_scaler': 'l2', 'model_name': 'pooled_bert', 'transformer_params': {'bert_model': 'sentence-transformers/all-MiniLM-L6-v2', 'pooling': 'mean'}, 'cache_dir': './nlp_cache'},
-        general_params={'nested_cv': False, 'use_algos': [['fttransformer']]},
-        nn_params={'opt_params': {'lr': 1e-5}, 'max_length': 128, 'bs': 32, 'n_epochs': 7,},
-    )
-
   elif item.TaskType == 'reg':
 
     task = Task(item.TaskType)
 
-    automl = TabularAutoML(
+  # Создаем TabularAutoML для всех типов задач
+  automl = TabularAutoML(
       task=task,
       cpu_limit=os.cpu_count(),
       timeout=MODEL_TIMEOUT,
       memory_limit=total_memory,
-      general_params={'nested_cv': False, 'use_algos': [['linear_l2', 'lgb', 'cb', 'nn', 'lgb_tuned', 'cb_tuned']]},
-    )
+      general_params={'nested_cv': False, 'use_algos': [['tabm']]},
+  )
 
   # Обучение модели
   try:
@@ -222,7 +283,8 @@ async def fit_predict(item: Item) -> str:
 
   metadata = {
                         'columns': df.columns.tolist(),
-                        'dtypes': df.dtypes.to_dict()
+                        'dtypes': df.dtypes.to_dict(),
+                        'text_column': text_column
                     }
 
   # Сохраняем метаданные
@@ -324,6 +386,11 @@ async def predict(item: Item) -> List[Union[float, int, str, list]]:
     new_df = preprocess_data(metadata, df)
     logging.info(f"Предобработка данных завершена, форма: {new_df.shape}")
 
+    # Генерация эмбеддингов для текстовой колонки при предсказании
+    text_column = metadata.get('text_column')
+    if text_column is not None and text_column in new_df.columns:
+      new_df = add_embeddings_to_df(new_df, text_column)
+
     try:
       # Выполняем синхронную операцию в отдельном потоке
       logging.info("Запуск automl.predict()")
@@ -342,7 +409,6 @@ async def predict(item: Item) -> List[Union[float, int, str, list]]:
           return find_max_indices(test_pred.data.tolist(), automl.reader.class_mapping)
       else:
           logging.info("class_mapping отсутствует, используем np.argmax")
-          # Если class_mapping отсутствует, возвращаем просто индексы
           return [np.argmax(row) for row in test_pred.data.tolist()]
     else:
       return test_pred.data.tolist()
