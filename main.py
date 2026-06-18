@@ -190,7 +190,7 @@ async def fit_predict(item: Item) -> str:
         reader_params={'n_jobs': os.cpu_count(), 'cv': 5, 'random_state': RANDOM_STATE},
         text_params={'lang': 'ru', 'bert_model': 'sentence-transformers/all-MiniLM-L6-v2', 'pooling': 'mean'},
         autonlp_params={'sent_scaler': 'l2', 'model_name': 'pooled_bert', 'transformer_params': {'bert_model': 'sentence-transformers/all-MiniLM-L6-v2', 'pooling': 'mean'}, 'cache_dir': './nlp_cache'},
-        general_params={'nested_cv': False, 'use_algos': [['nn']]},
+        general_params={'nested_cv': False, 'use_algos': [['fttransformer']]},
         nn_params={'opt_params': {'lr': 1e-5}, 'max_length': 128, 'bs': 32, 'n_epochs': 7,},
     )
 
