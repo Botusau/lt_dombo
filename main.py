@@ -263,79 +263,94 @@ async def predict(item: Item) -> List[Union[float, int, str, list]]:
   Raises:
       HTTPException: При ошибках валидации или предсказания
   """
+  import traceback
   logging.info(f"Запуск предсказания модели {item.NameModel}")
 
-  # Валидация входных данных
-  if not item.data:
-    logging.error("Ошибка: данные не предоставлены")
-    raise HTTPException(status_code=400, detail="Данные не предоставлены")
-  
-  if not item.NameModel:
-    logging.error("Ошибка: имя модели не указано")
-    raise HTTPException(status_code=400, detail="Имя модели не указано")
-  
-  if item.TaskType not in ['multiclass', 'binary', 'reg']:
-    logging.error(f"Ошибка: неподдерживаемый тип задачи: {item.TaskType}")
-    raise HTTPException(status_code=400, detail=f"Неподдерживаемый тип задачи: {item.TaskType}")
-
   try:
-    df = pd.DataFrame(item.data)
-  except Exception as e:
-    logging.error(f"Ошибка при создании DataFrame: {str(e)}")
-    raise HTTPException(status_code=400, detail=f"Ошибка при создании DataFrame: {str(e)}")
+    # Валидация входных данных
+    if not item.data:
+      logging.error("Ошибка: данные не предоставлены")
+      raise HTTPException(status_code=400, detail="Данные не предоставлены")
+    
+    if not item.NameModel:
+      logging.error("Ошибка: имя модели не указано")
+      raise HTTPException(status_code=400, detail="Имя модели не указано")
+    
+    if item.TaskType not in ['multiclass', 'binary', 'reg']:
+      logging.error(f"Ошибка: неподдерживаемый тип задачи: {item.TaskType}")
+      raise HTTPException(status_code=400, detail=f"Неподдерживаемый тип задачи: {item.TaskType}")
 
-  NameModel = item.NameModel
-  # Получаем путь к директории модели
-  model_dir = './app/' + NameModel
-  # Получаем путь к файлу модели
-  patchModel = model_dir + '/model.pkl'
-  patchMetadata = model_dir + '/metadata.pkl'
-  
-  # Проверка пути к файлу модели
-  model_path = Path(patchModel)
-  if not model_path.exists():
-    logging.error(f"Файл модели не найден: {patchModel}")
-    raise HTTPException(status_code=400, detail=f"Файл модели не найден: {patchModel}")
+    try:
+      df = pd.DataFrame(item.data)
+    except Exception as e:
+      logging.error(f"Ошибка при создании DataFrame: {str(e)}")
+      raise HTTPException(status_code=400, detail=f"Ошибка при создании DataFrame: {str(e)}")
 
-  # Используем кэширование моделей
-  if app.state.models.get(NameModel) is None:
+    NameModel = item.NameModel
+    # Получаем путь к директории модели
+    model_dir = './app/' + NameModel
+    # Получаем путь к файлу модели
+    patchModel = model_dir + '/model.pkl'
+    patchMetadata = model_dir + '/metadata.pkl'
+    
+    # Проверка пути к файлу модели
+    model_path = Path(patchModel)
+    if not model_path.exists():
+      logging.error(f"Файл модели не найден: {patchModel}")
+      raise HTTPException(status_code=400, detail=f"Файл модели не найден: {patchModel}")
+
+    # Используем кэширование моделей
+    if app.state.models.get(NameModel) is None:
+      try:
+        # Выполняем синхронную операцию в отдельном потоке
+        logging.info(f"Загрузка модели из {patchModel}")
+        app.state.models[NameModel] = await asyncio.to_thread(joblib.load, patchModel)
+        app.state.model_metadata[NameModel] = await asyncio.to_thread(joblib.load, patchMetadata)
+        app.state.model_timestamps[NameModel] = datetime.now()
+        logging.info(f"Модель {NameModel} загружена успешно")
+      except Exception as e:
+        logging.error(f"Ошибка при загрузке модели: {str(e)}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Ошибка при загрузке модели: {str(e)}")
+    else:
+      # Обновляем время последнего использования модели
+      if NameModel in app.state.model_timestamps:
+          app.state.model_timestamps[NameModel] = datetime.now()
+
+    automl = app.state.models.get(NameModel)
+    metadata = app.state.model_metadata.get(NameModel)
+
+    logging.info("Загрузка модели завершена")
+
+    new_df = preprocess_data(metadata, df)
+    logging.info(f"Предобработка данных завершена, форма: {new_df.shape}")
+
     try:
       # Выполняем синхронную операцию в отдельном потоке
-      app.state.models[NameModel] = await asyncio.to_thread(joblib.load, patchModel)
-      app.state.model_metadata[NameModel] = await asyncio.to_thread(joblib.load, patchMetadata)
-      app.state.model_timestamps[NameModel] = datetime.now()
+      logging.info("Запуск automl.predict()")
+      test_pred = await asyncio.to_thread(automl.predict, new_df)
+      logging.info(f"automl.predict() завершено, тип результата: {type(test_pred)}")
     except Exception as e:
-      logging.error(f"Ошибка при загрузке модели: {str(e)}")
-      raise HTTPException(status_code=500, detail=f"Ошибка при загрузке модели: {str(e)}")
-  else:
-    # Обновляем время последнего использования модели
-    if NameModel in app.state.model_timestamps:
-        app.state.model_timestamps[NameModel] = datetime.now()
+      logging.error(f"Ошибка при предсказании: {str(e)}\n{traceback.format_exc()}")
+      raise HTTPException(status_code=500, detail=f"Ошибка при предсказании: {str(e)}")
 
-  automl = app.state.models.get(NameModel)
-  metadata = app.state.model_metadata.get(NameModel)
+    logging.info("Предсказание завершено")
 
-  logging.info("Загрузка модели завершена")
-
-  new_df = preprocess_data(metadata, df)
-
-  try:
-    # Выполняем синхронную операцию в отдельном потоке
-    test_pred = await asyncio.to_thread(automl.predict, new_df)
-  except Exception as e:
-    logging.error(f"Ошибка при предсказании: {str(e)}")
-    raise HTTPException(status_code=500, detail=f"Ошибка при предсказании: {str(e)}")
-
-  logging.info("Предсказание завершено")
-
-  if item.TaskType == 'multiclass' or item.TaskType == 'binary':
-    if hasattr(automl.reader, 'class_mapping') and automl.reader.class_mapping is not None:
-        return find_max_indices(test_pred.data.tolist(), automl.reader.class_mapping)
+    if item.TaskType == 'multiclass' or item.TaskType == 'binary':
+      logging.info(f"Проверка class_mapping: {hasattr(automl.reader, 'class_mapping')}")
+      if hasattr(automl.reader, 'class_mapping') and automl.reader.class_mapping is not None:
+          logging.info(f"class_mapping: {automl.reader.class_mapping}")
+          return find_max_indices(test_pred.data.tolist(), automl.reader.class_mapping)
+      else:
+          logging.info("class_mapping отсутствует, используем np.argmax")
+          # Если class_mapping отсутствует, возвращаем просто индексы
+          return [np.argmax(row) for row in test_pred.data.tolist()]
     else:
-        # Если class_mapping отсутствует, возвращаем просто индексы
-        return [np.argmax(row) for row in test_pred.data.tolist()]
-  else:
-    return test_pred.data.tolist()
+      return test_pred.data.tolist()
+  except HTTPException:
+    raise
+  except Exception as e:
+    logging.error(f"Необработанная ошибка в /predict/: {str(e)}\n{traceback.format_exc()}")
+    raise HTTPException(status_code=500, detail=f"Необработанная ошибка: {str(e)}")
 
 def find_max_indices(arr, mapping):
    """
