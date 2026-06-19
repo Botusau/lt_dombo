@@ -9,3 +9,4 @@ setuptools
 wheel
 torch==2.6.0
 sentence-transformers
+fasttext
