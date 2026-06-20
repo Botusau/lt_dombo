@@ -1,5 +1,7 @@
 #!/bin/bash
 
+mkdir -p /data/models /data/nlp_cache
+
 cd /app
 mkdir lt_dombo
 rm -rf lt_dombo

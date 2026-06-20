@@ -69,7 +69,10 @@ def get_embedding_model() -> SentenceTransformer:
     global _embedding_model
     if _embedding_model is None:
         logging.info(f"Загрузка модели эмбеддингов {EMBEDDING_MODEL_NAME}...")
-        _embedding_model = SentenceTransformer(EMBEDDING_MODEL_NAME)
+        _embedding_model = SentenceTransformer(
+            EMBEDDING_MODEL_NAME,
+            cache_folder='/data/nlp_cache'
+        )
         logging.info("Модель эмбеддингов загружена")
     return _embedding_model
 
@@ -186,7 +189,7 @@ def normalize_text_column(text_column) -> Optional[str]:
 
 def ensure_model_dir(name: str) -> str:
     """Создаёт директорию модели и возвращает путь."""
-    model_dir = f'./app/{name}'
+    model_dir = f'/data/models/{name}'
     Path(model_dir).mkdir(parents=True, exist_ok=True)
     return model_dir
 
@@ -226,8 +229,8 @@ def create_automl(task_type: str, df: pd.DataFrame):
 
 async def save_model(automl, name: str, metadata: Dict) -> None:
     """Асинхронно сохраняет модель и метаданные."""
-    model_path = f'./app/{name}/model.pkl'
-    metadata_path = f'./app/{name}/metadata.pkl'
+    model_path = f'/data/models/{name}/model.pkl'
+    metadata_path = f'/data/models/{name}/metadata.pkl'
 
     await asyncio.to_thread(joblib.dump, automl, model_path)
     await asyncio.to_thread(joblib.dump, metadata, metadata_path)
@@ -235,8 +238,8 @@ async def save_model(automl, name: str, metadata: Dict) -> None:
 
 async def load_model(name: str):
     """Загружает модель и метаданные из файла."""
-    model_path = f'./app/{name}/model.pkl'
-    metadata_path = f'./app/{name}/metadata.pkl'
+    model_path = f'/data/models/{name}/model.pkl'
+    metadata_path = f'/data/models/{name}/metadata.pkl'
 
     automl = await asyncio.to_thread(joblib.load, model_path)
     metadata = await asyncio.to_thread(joblib.load, metadata_path)

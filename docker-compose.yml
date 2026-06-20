@@ -8,3 +8,13 @@ services:
       dockerfile: ./Dockerfile
     ports:
       - 8000:8000
+    environment:
+      - SENTENCE_TRANSFORMERS_HOME=/data/nlp_cache
+      - TRANSFORMERS_CACHE=/data/nlp_cache
+    volumes:
+      - models_data:/data/models
+      - nlp_cache_data:/data/nlp_cache
+
+volumes:
+  models_data:
+  nlp_cache_data:

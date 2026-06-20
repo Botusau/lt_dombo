@@ -113,7 +113,7 @@ async def predict(item: Item) -> List[Union[float, int, str, list]]:
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Ошибка при создании DataFrame: {e}")
 
-        model_path = Path(f'./app/{item.NameModel}/model.pkl')
+        model_path = Path(f'/data/models/{item.NameModel}/model.pkl')
         if not model_path.exists():
             raise HTTPException(status_code=400, detail=f"Файл модели не найден: {model_path}")
 
