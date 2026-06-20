@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 # Логирование
 # ─────────────────────────────────────────────
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,
     filename='log.log',
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
