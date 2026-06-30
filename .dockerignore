@@ -32,3 +32,5 @@ main_test_ai.py
 **/tabularAutoML_model_report
 model.pkl
 main_norn_test.py
+**/plans
+**/nlp_cache
